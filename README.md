@@ -1,2 +1,2 @@
-# GA_tutorial
+# AGs_tutorial
 Tutorial algoritmos genéticos
