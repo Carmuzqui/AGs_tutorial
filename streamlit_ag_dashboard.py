@@ -7,6 +7,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 from datetime import datetime
 import time
+from scipy.optimize import differential_evolution
 
 # Configuración de la página
 st.set_page_config(
@@ -126,7 +127,8 @@ def mutate(chromosome, mutation_rate, chromosome_length):
             mutated_chromosome[i] = '1' if mutated_chromosome[i] == '0' else '0'
     return "".join(mutated_chromosome)
 
-def create_evolution_plot(evolution_data, distribution_type, crossover_points):
+
+def create_evolution_plot(evolution_data, distribution_type, crossover_points, min_x, max_x):
     """Cria o gráfico interativo da evolução das soluções."""
     fig = make_subplots(
         rows=1, cols=2,
@@ -135,8 +137,27 @@ def create_evolution_plot(evolution_data, distribution_type, crossover_points):
     )
     
     # Função objetivo
-    x_func = np.linspace(-1, 2, 1000)
+    x_func = np.linspace(min_x, max_x, 1000)
     y_func = x_func * np.sin(10 * np.pi * x_func) + 1
+    
+    # # NOVO: Calcular o máximo teórico automaticamente
+    # theoretical_max_value = np.max(y_func)
+    # theoretical_max_x = x_func[np.argmax(y_func)]
+
+    # Función objetivo
+    def objective_function(x):
+        return x * np.sin(10 * np.pi * x) + 1
+    
+    # MÁXIMO GLOBAL usando differential_evolution
+    result = differential_evolution(lambda x: -objective_function(x[0]), 
+                                  [(min_x, max_x)], 
+                                  seed=42,
+                                  maxiter=1000)
+    
+    theoretical_max_x = result.x[0]
+    theoretical_max_value = objective_function(theoretical_max_x)
+    
+
     
     fig.add_trace(
         go.Scatter(x=x_func, y=y_func, mode='lines', name='f(x) = x sin(10πx) + 1',
@@ -200,22 +221,24 @@ def create_evolution_plot(evolution_data, distribution_type, crossover_points):
         row=1, col=2
     )
 
-    # Línea de referencia para el máximo teórico
-    # fig.add_hline(y=2.85027, line_dash="dot", line_color="green", 
-    #             annotation_text="Máximo teórico", row=1, col=2)
+    # MODIFICADO: Línea de referencia usando el máximo calculado automáticamente
     fig.add_trace(
-    go.Scatter(x=generations, y=[2.85027]*len(generations), 
-              mode='lines', name='Máximo teórico',
-              line=dict(color='green', dash='dot')),
-    row=1, col=2
-)
+        go.Scatter(x=generations, y=[theoretical_max_value]*len(generations), 
+                  mode='lines', name=f'Máximo teórico (x={theoretical_max_x:.3f})',
+                  line=dict(color='green', dash='dot')),
+        row=1, col=2
+    )
     
-    # Configurar layout
-    fig.update_xaxes(title_text="x", row=1, col=1, range=[-1, 2])
-    fig.update_yaxes(title_text="f(x)", row=1, col=1)
+    # MODIFICADO: Configurar layout con rangos dinámicos
+    # Calcular margen para visualización completa de la función
+    y_margin = (np.max(y_func) - np.min(y_func)) * 0.05  # 5% de margen
+    
+    fig.update_xaxes(title_text="x", row=1, col=1, range=[min_x, max_x])
+    fig.update_yaxes(title_text="f(x)", row=1, col=1, 
+                     range=[np.min(y_func) - y_margin, np.max(y_func) + y_margin])
     fig.update_xaxes(title_text="Geração", row=1, col=2)
-    # fig.update_yaxes(title_text="Valor de f(x)", row=1, col=2)
-    fig.update_yaxes(title_text="Valor de f(x)", row=1, col=2, range=[None, 3])
+    fig.update_yaxes(title_text="Valor de f(x)", row=1, col=2, 
+                     range=[None, max(theoretical_max_value, max(best_fitness)) * 1.05])
     
     crossover_type = "ponto único" if crossover_points == 1 else "dois pontos"
     fig.update_layout(
@@ -231,7 +254,13 @@ def create_evolution_plot(evolution_data, distribution_type, crossover_points):
         )
     )
     
-    return fig
+    return fig, theoretical_max_x, theoretical_max_value
+
+
+
+
+
+
 
 def run_genetic_algorithm_streamlit(params):
     """Executa o algoritmo genético com os parâmetros fornecidos."""
@@ -335,10 +364,13 @@ def run_genetic_algorithm_streamlit(params):
 
 # --- Interface Streamlit ---
 
+
 def main():
     st.title("Dashboard dos algoritmos genéticos")
     st.markdown("**Implementação interativa do tutorial de algoritmos genéticos**")
-    
+
+    # random.seed(42)
+
     # Sidebar com parâmetros
     st.sidebar.header("⚙️ Parâmetros do algoritmo")
     
@@ -398,8 +430,19 @@ def main():
         results = st.session_state.results
         params = st.session_state.params
         
+        # Gráfico principal CON CAPTURA de valores teóricos
+        st.subheader("📊 Visualização da evolução")
+        fig, theoretical_max_x, theoretical_max_value = create_evolution_plot(
+            results['evolution_data'], 
+            params['distribution_type'], 
+            params['crossover_points'], 
+            params['min_x'], 
+            params['max_x']
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
         # Métricas principais
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
             st.metric("Melhor f(x)", f"{results['best_objective']:.6f}")
@@ -408,17 +451,15 @@ def main():
             st.metric("Melhor x", f"{results['best_x']:.6f}")
         
         with col3:
+            st.metric("Máximo teórico", f"{theoretical_max_value:.6f}")
+        
+        with col4:
             crossover_type = "Ponto único" if params['crossover_points'] == 1 else "Dois pontos"
             st.metric("Crossover", crossover_type)
         
-        with col4:
+        with col5:
             elitism_status = "Ativado" if params['use_elitism'] else "Desativado"
             st.metric("Elitismo", elitism_status)
-        
-        # Gráfico principal
-        st.subheader("📊 Visualização da evolução")
-        fig = create_evolution_plot(results['evolution_data'], params['distribution_type'], params['crossover_points'])
-        st.plotly_chart(fig, use_container_width=True)
         
         # Informações detalhadas
         with st.expander("📋 Informações detalhadas"):
@@ -436,7 +477,27 @@ def main():
                     {"Parâmetro": "Taxa mutação", "Valor": f"{params['mutation_rate']:.1%}"},
                     {"Parâmetro": "Distribuição", "Valor": params['distribution_type'].title()},
                 ])
-                st.dataframe(param_df, hide_index=True)
+                
+                # Función helper para limpiar DataFrame
+                def clean_dataframe_for_streamlit(df):
+                    """Limpia el DataFrame para evitar errores de PyArrow en Streamlit"""
+                    df_clean = df.copy()
+                    
+                    for col in df_clean.columns:
+                        if df_clean[col].dtype == 'object':
+                            # Intentar convertir porcentajes a números
+                            if df_clean[col].astype(str).str.contains('%').any():
+                                try:
+                                    df_clean[col] = pd.to_numeric(
+                                        df_clean[col].astype(str).str.replace('%', ''), 
+                                        errors='coerce'
+                                    )
+                                except:
+                                    pass
+                    
+                    return df_clean
+                
+                st.dataframe(clean_dataframe_for_streamlit(param_df), hide_index=True)
             
             with col2:
                 st.subheader("Estatísticas por geração")
@@ -447,15 +508,13 @@ def main():
                 })
                 st.dataframe(stats_df, height=300)
         
-        # Comparação com máximo teórico
-        theoretical_max = 2.85027
-        theoretical_x = 1.85055
-        gap = theoretical_max - results['best_objective']
-        gap_percent = (gap / theoretical_max) * 100
+        # Comparação com máximo teórico - MENSAJE SIMPLE
+        gap = theoretical_max_value - results['best_objective']
+        gap_percent = (gap / theoretical_max_value) * 100 if theoretical_max_value != 0 else 0
         
         st.info(f"""
         **📈 Comparação com máximo teórico:**
-        - Máximo teórico: f({theoretical_x}) = {theoretical_max:.5f}
+        - Máximo teórico: f({theoretical_max_x:.5f}) = {theoretical_max_value:.5f}
         - Melhor encontrado: f({results['best_x']:.5f}) = {results['best_objective']:.5f}
         - Gap: {gap:.5f} ({gap_percent:.2f}%)
         """)
