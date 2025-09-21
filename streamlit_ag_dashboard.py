@@ -1,3 +1,540 @@
+# import streamlit as st
+# import math
+# import random
+# import numpy as np
+# import plotly.graph_objects as go
+# from plotly.subplots import make_subplots
+# import pandas as pd
+# from datetime import datetime
+# import time
+# from scipy.optimize import differential_evolution
+
+# # Configuração da página
+# st.set_page_config(
+#     page_title="Algoritmos Genéticos",
+#     page_icon="🧬",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
+
+# # --- Funções do Algoritmo Genético ---
+
+# # Função para converter um valor real em representação binária
+# # Transforma um número decimal em uma cadeia de bits de comprimento fixo
+# def codificar_x(valor, min_x, max_x, comprimento_cromossomo):
+#     """Codifica um valor real 'x' em uma cadeia de bits."""
+#     valor = max(min_x, min(max_x, valor))
+#     amplitude_intervalo = max_x - min_x
+#     valor_maximo_b10 = (2**comprimento_cromossomo) - 1
+#     b10 = round((valor - min_x) * valor_maximo_b10 / amplitude_intervalo)
+#     cadeia_binaria = bin(int(b10))[2:].zfill(comprimento_cromossomo)
+#     return cadeia_binaria
+
+# # Função para converter uma representação binária de volta para valor real
+# # Transforma uma cadeia de bits em um número decimal dentro do intervalo especificado
+# def decodificar_cromossomo(cadeia_cromossomo, min_x, max_x, comprimento_cromossomo):
+#     """Decodifica uma cadeia de bits em um valor real 'x'."""
+#     b10 = int(cadeia_cromossomo, 2)
+#     valor_maximo_b10 = (2**comprimento_cromossomo) - 1
+#     x = min_x + (max_x - min_x) * b10 / valor_maximo_b10
+#     return x
+
+# # Função objetivo que queremos otimizar
+# # Define o problema matemático: f(x) = x * sin(10*pi*x) + 1
+# def funcao_objetivo(x):
+#     """Implementa a função objetivo f(x) = x * sin(10*pi*x) + 1."""
+#     return x * math.sin(10 * math.pi * x) + 1
+
+# # Função para criar a população inicial de cromossomos
+# # Gera indivíduos iniciais de forma aleatória ou equidistante
+# def gerar_populacao_inicial(tamanho, comprimento, tipo_distribuicao, min_x, max_x):
+#     """Gera a população inicial de cromossomos."""
+#     populacao = []
+#     if tipo_distribuicao == "aleatoria":
+#         for _ in range(tamanho):
+#             cromossomo = ''.join(random.choice('01') for _ in range(comprimento))
+#             populacao.append(cromossomo)
+#     elif tipo_distribuicao == "equidistante":
+#         if tamanho == 1:
+#             valor_x = (min_x + max_x) / 2
+#             populacao.append(codificar_x(valor_x, min_x, max_x, comprimento))
+#         else:
+#             tamanho_passo = (max_x - min_x) / (tamanho - 1)
+#             for i in range(tamanho):
+#                 valor_x = min_x + i * tamanho_passo
+#                 populacao.append(codificar_x(valor_x, min_x, max_x, comprimento))
+#     return populacao
+
+# # Função para avaliar a qualidade (fitness) de cada cromossomo
+# # Calcula o valor da função objetivo e atribui aptidão baseada no ranking
+# def avaliar_populacao(populacao, min_x, max_x, comprimento_cromossomo, aptidao_maxima_rank, aptidao_minima_rank):
+#     """Avalia a aptidão de cada cromossomo na população."""
+#     cromossomos_avaliados = []
+#     for cromossomo in populacao:
+#         valor_x = decodificar_cromossomo(cromossomo, min_x, max_x, comprimento_cromossomo)
+#         valor_objetivo = funcao_objetivo(valor_x)
+#         cromossomos_avaliados.append({
+#             'cromossomo': cromossomo,
+#             'valor_x': valor_x,
+#             'valor_objetivo': valor_objetivo,
+#             'aptidao': 0
+#         })
+    
+#     # Ordenar e atribuir aptidão ranqueada
+#     cromossomos_avaliados.sort(key=lambda item: item['valor_objetivo'], reverse=True)
+#     N = len(cromossomos_avaliados)
+#     for i, item in enumerate(cromossomos_avaliados):
+#         if N > 1:
+#             item['aptidao'] = aptidao_minima_rank + (aptidao_maxima_rank - aptidao_minima_rank) * (N - 1 - i) / (N - 1)
+#         else:
+#             item['aptidao'] = aptidao_maxima_rank
+    
+#     return cromossomos_avaliados
+
+# # Função para selecionar pais para reprodução
+# # Implementa o método da roleta viciada baseado na aptidão
+# def selecionar_pais(populacao_avaliada, tamanho_populacao):
+#     """Seleciona os pais usando o algoritmo da roleta."""
+#     aptidao_total = sum(item['aptidao'] for item in populacao_avaliada)
+    
+#     if aptidao_total == 0:
+#         return [random.choice([item['cromossomo'] for item in populacao_avaliada]) for _ in range(tamanho_populacao)]
+
+#     aptidao_cumulativa = []
+#     cumulativo_atual = 0
+#     for item in populacao_avaliada:
+#         cumulativo_atual += item['aptidao']
+#         aptidao_cumulativa.append(cumulativo_atual)
+        
+#     pais_selecionados = []
+#     for _ in range(tamanho_populacao):
+#         r = random.uniform(0, aptidao_total)
+#         for i, valor_cumulativo in enumerate(aptidao_cumulativa):
+#             if r <= valor_cumulativo:
+#                 pais_selecionados.append(populacao_avaliada[i]['cromossomo'])
+#                 break
+#     return pais_selecionados
+
+# # Função para realizar cruzamento entre dois pais
+# # Combina material genético de dois cromossomos para gerar descendência
+# def cruzamento(pai1, pai2, num_pontos, taxa_cruzamento, comprimento_cromossomo):
+#     """Realiza cruzamento entre dois pais."""
+#     if random.random() < taxa_cruzamento:
+#         if num_pontos == 1:
+#             ponto = random.randint(1, comprimento_cromossomo - 1)
+#             filho1 = pai1[:ponto] + pai2[ponto:]
+#             filho2 = pai2[:ponto] + pai1[ponto:]
+#             return filho1, filho2
+#         elif num_pontos == 2:
+#             ponto1 = random.randint(1, comprimento_cromossomo - 2)
+#             ponto2 = random.randint(ponto1 + 1, comprimento_cromossomo - 1)
+#             filho1 = pai1[:ponto1] + pai2[ponto1:ponto2] + pai1[ponto2:]
+#             filho2 = pai2[:ponto1] + pai1[ponto1:ponto2] + pai2[ponto2:]
+#             return filho1, filho2
+#     return pai1, pai2
+
+# # Função para introduzir mutações nos cromossomos
+# # Inverte bits aleatoriamente para manter diversidade genética
+# def mutar(cromossomo, taxa_mutacao, comprimento_cromossomo):
+#     """Realiza a mutação de inversão de bit."""
+#     cromossomo_mutado = list(cromossomo)
+#     for i in range(comprimento_cromossomo):
+#         if random.random() < taxa_mutacao:
+#             cromossomo_mutado[i] = '1' if cromossomo_mutado[i] == '0' else '0'
+#     return "".join(cromossomo_mutado)
+
+# # Função para criar visualização gráfica da evolução
+# # Gera gráficos interativos mostrando a convergência do algoritmo
+# def criar_grafico_evolucao(dados_evolucao, tipo_distribuicao, pontos_cruzamento, min_x, max_x):
+#     """Cria o gráfico interativo da evolução das soluções."""
+#     fig = make_subplots(
+#         rows=1, cols=2,
+#         subplot_titles=(f'Evolução das soluções - {tipo_distribuicao.title()}', 'Convergência da aptidão'),
+#         specs=[[{"secondary_y": False}, {"secondary_y": False}]]
+#     )
+    
+#     # Função objetivo
+#     x_func = np.linspace(min_x, max_x, 1000)
+#     y_func = x_func * np.sin(10 * np.pi * x_func) + 1
+    
+#     # Função objetivo para otimização
+#     def funcao_objetivo_otimizacao(x):
+#         return x * np.sin(10 * np.pi * x) + 1
+    
+#     # MÁXIMO GLOBAL usando differential_evolution
+#     resultado = differential_evolution(lambda x: -funcao_objetivo_otimizacao(x[0]), 
+#                                      [(min_x, max_x)], 
+#                                      seed=42,
+#                                      maxiter=1000)
+    
+#     x_maximo_teorico = resultado.x[0]
+#     valor_maximo_teorico = funcao_objetivo_otimizacao(x_maximo_teorico)
+    
+#     fig.add_trace(
+#         go.Scatter(x=x_func, y=y_func, mode='lines', name='f(x) = x sin(10πx) + 1',
+#                   line=dict(color='black', width=1), opacity=0.7),
+#         row=1, col=1
+#     )
+    
+#     # População inicial (pontos pequenos e pretos)
+#     geracao_inicial = dados_evolucao[0]
+#     x_inicial = [item['valor_x'] for item in geracao_inicial['populacao']]
+#     y_inicial = [item['valor_objetivo'] for item in geracao_inicial['populacao']]
+    
+#     fig.add_trace(
+#         go.Scatter(x=x_inicial, y=y_inicial, mode='markers', name='População Inicial',
+#                   marker=dict(color='black', size=4, opacity=0.7)),
+#         row=1, col=1
+#     )
+    
+#     # Melhores soluções de cada geração (todas com cor celeste e texto preto)
+#     evolucao_melhor_x = [gen['melhor_individuo']['valor_x'] for gen in dados_evolucao]
+#     evolucao_melhor_y = [gen['melhor_individuo']['valor_objetivo'] for gen in dados_evolucao]
+    
+#     # Adicionar todas as gerações com uma única entrada na legenda
+#     for i, (x, y) in enumerate(zip(evolucao_melhor_x, evolucao_melhor_y)):
+#         mostrar_legenda = (i == 0)  # Só mostrar na legenda para a primeira iteração
+#         nome_legenda = 'Iterações' if mostrar_legenda else None
+        
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=[x], y=[y], 
+#                 mode='markers+text',
+#                 text=[str(i+1)],
+#                 textposition="middle center",
+#                 textfont=dict(color="black", size=8),
+#                 name=nome_legenda,
+#                 showlegend=mostrar_legenda,
+#                 marker=dict(
+#                     color='lightblue',
+#                     size=12,
+#                     line=dict(color='black', width=1)
+#                 ),
+#                 hovertemplate=f"Geração {i+1}<br>x: %{{x:.4f}}<br>f(x): %{{y:.4f}}<extra></extra>"
+#             ),
+#             row=1, col=1
+#         )
+    
+#     # Gráfico de convergência
+#     geracoes = list(range(1, len(dados_evolucao) + 1))
+#     melhor_aptidao = [gen['melhor_individuo']['valor_objetivo'] for gen in dados_evolucao]
+#     aptidao_media = [gen['objetivo_medio'] for gen in dados_evolucao]
+    
+#     fig.add_trace(
+#         go.Scatter(x=geracoes, y=melhor_aptidao, mode='lines+markers', name='Melhor f(x)',
+#                   line=dict(color='blue'), marker=dict(size=4)),
+#         row=1, col=2
+#     )
+    
+#     fig.add_trace(
+#         go.Scatter(x=geracoes, y=aptidao_media, mode='lines+markers', name='Média f(x)',
+#                   line=dict(color='red', dash='dash'), marker=dict(size=3, symbol='square')),
+#         row=1, col=2
+#     )
+
+#     # Linha de referência usando o máximo calculado automaticamente
+#     fig.add_trace(
+#         go.Scatter(x=geracoes, y=[valor_maximo_teorico]*len(geracoes), 
+#                   mode='lines', name=f'Máximo teórico (x={x_maximo_teorico:.3f})',
+#                   line=dict(color='green', dash='dot')),
+#         row=1, col=2
+#     )
+    
+#     # Configurar layout com rangos dinâmicos
+#     # Calcular margem para visualização completa da função
+#     margem_y = (np.max(y_func) - np.min(y_func)) * 0.05  # 5% de margem
+    
+#     fig.update_xaxes(title_text="x", row=1, col=1, range=[min_x, max_x])
+#     fig.update_yaxes(title_text="f(x)", row=1, col=1, 
+#                      range=[np.min(y_func) - margem_y, np.max(y_func) + margem_y])
+#     fig.update_xaxes(title_text="Geração", row=1, col=2)
+#     fig.update_yaxes(title_text="Valor de f(x)", row=1, col=2, 
+#                      range=[None, max(valor_maximo_teorico, max(melhor_aptidao)) * 1.05])
+    
+#     tipo_cruzamento = "ponto único" if pontos_cruzamento == 1 else "dois pontos"
+#     fig.update_layout(
+#         title=f"Algoritmo Genético - Cruzamento {tipo_cruzamento}",
+#         height=600,
+#         showlegend=True,
+#         legend=dict(
+#             orientation="v",
+#             yanchor="top",
+#             y=1,
+#             xanchor="left",
+#             x=1.02
+#         )
+#     )
+    
+#     return fig, x_maximo_teorico, valor_maximo_teorico
+
+# # Função principal que coordena todo o processo evolutivo
+# # Executa o algoritmo genético completo com todas as etapas
+# def executar_algoritmo_genetico_streamlit(parametros):
+#     """Executa o algoritmo genético com os parâmetros fornecidos."""
+#     # Extrair parâmetros
+#     min_x = parametros['min_x']
+#     max_x = parametros['max_x']
+#     comprimento_cromossomo = parametros['comprimento_cromossomo']
+#     tamanho_populacao = parametros['tamanho_populacao']
+#     num_geracoes = parametros['num_geracoes']
+#     taxa_cruzamento = parametros['taxa_cruzamento']
+#     taxa_mutacao = parametros['taxa_mutacao']
+#     usar_elitismo = parametros['usar_elitismo']
+#     pontos_cruzamento = parametros['pontos_cruzamento']
+#     tipo_distribuicao = parametros['tipo_distribuicao']
+#     aptidao_maxima_rank = parametros['aptidao_maxima_rank']
+#     aptidao_minima_rank = parametros['aptidao_minima_rank']
+    
+#     # Gerar população inicial
+#     populacao = gerar_populacao_inicial(tamanho_populacao, comprimento_cromossomo, tipo_distribuicao, min_x, max_x)
+    
+#     # Variáveis de controle
+#     melhor_individuo_geral = None
+#     melhor_valor_objetivo_geral = -float('inf')
+#     melhor_objetivo_por_geracao = []
+#     objetivo_medio_por_geracao = []
+#     dados_evolucao = []
+    
+#     # Barra de progresso
+#     barra_progresso = st.progress(0)
+#     texto_status = st.empty()
+    
+#     for geracao in range(num_geracoes):
+#         # Atualizar barra de progresso
+#         progresso = (geracao + 1) / num_geracoes
+#         barra_progresso.progress(progresso)
+#         texto_status.text(f'Executando geração {geracao + 1}/{num_geracoes}...')
+        
+#         # Avaliar população
+#         populacao_avaliada = avaliar_populacao(populacao, min_x, max_x, comprimento_cromossomo, aptidao_maxima_rank, aptidao_minima_rank)
+        
+#         # Encontrar melhor indivíduo
+#         dados_melhor_individuo_atual = max(populacao_avaliada, key=lambda item: item['valor_objetivo'])
+#         melhor_objetivo_atual = dados_melhor_individuo_atual['valor_objetivo']
+        
+#         # Atualizar melhor global
+#         if melhor_objetivo_atual > melhor_valor_objetivo_geral:
+#             melhor_valor_objetivo_geral = melhor_objetivo_atual
+#             melhor_individuo_geral = dados_melhor_individuo_atual['cromossomo']
+        
+#         # Calcular média
+#         objetivo_medio = sum(item['valor_objetivo'] for item in populacao_avaliada) / tamanho_populacao
+        
+#         # Armazenar dados
+#         melhor_objetivo_por_geracao.append(melhor_objetivo_atual)
+#         objetivo_medio_por_geracao.append(objetivo_medio)
+#         dados_evolucao.append({
+#             'geracao': geracao + 1,
+#             'populacao': populacao_avaliada.copy(),
+#             'melhor_individuo': dados_melhor_individuo_atual.copy(),
+#             'objetivo_medio': objetivo_medio
+#         })
+        
+#         # Seleção
+#         pais = selecionar_pais(populacao_avaliada, tamanho_populacao)
+        
+#         # Nova população
+#         proxima_populacao = []
+        
+#         # Elitismo
+#         if usar_elitismo:
+#             proxima_populacao.append(dados_melhor_individuo_atual['cromossomo'])
+        
+#         # Cruzamento e mutação
+#         while len(proxima_populacao) < tamanho_populacao:
+#             p1 = random.choice(pais)
+#             p2 = random.choice(pais)
+#             filho1, filho2 = cruzamento(p1, p2, pontos_cruzamento, taxa_cruzamento, comprimento_cromossomo)
+#             filho1 = mutar(filho1, taxa_mutacao, comprimento_cromossomo)
+#             filho2 = mutar(filho2, taxa_mutacao, comprimento_cromossomo)
+#             proxima_populacao.append(filho1)
+#             if len(proxima_populacao) < tamanho_populacao:
+#                 proxima_populacao.append(filho2)
+        
+#         populacao = proxima_populacao
+        
+#         # Pequeno delay para visualizar o progresso
+#         time.sleep(0.01)
+    
+#     # Limpar barra de progresso
+#     barra_progresso.empty()
+#     texto_status.empty()
+    
+#     return {
+#         'dados_evolucao': dados_evolucao,
+#         'melhor_individuo': melhor_individuo_geral,
+#         'melhor_objetivo': melhor_valor_objetivo_geral,
+#         'melhor_x': decodificar_cromossomo(melhor_individuo_geral, min_x, max_x, comprimento_cromossomo),
+#         'melhor_por_geracao': melhor_objetivo_por_geracao,
+#         'media_por_geracao': objetivo_medio_por_geracao
+#     }
+
+# # --- Interface Streamlit ---
+
+# # Función principal que maneja toda la interfaz de usuario
+# # Crea el dashboard interactivo y coordina la ejecución del algoritmo
+# def principal():
+#     st.title("Dashboard dos Algoritmos Genéticos")
+#     st.markdown("**Implementação interativa do tutorial de algoritmos genéticos**")
+
+#     # Sidebar com parâmetros
+#     st.sidebar.header("⚙️ Parâmetros do Algoritmo")
+    
+#     # Parâmetros do domínio
+#     st.sidebar.subheader("Domínio da Função")
+#     min_x = st.sidebar.number_input("Limite inferior (min_x)", value=-1.0, step=0.1)
+#     max_x = st.sidebar.number_input("Limite superior (max_x)", value=2.0, step=0.1)
+#     comprimento_cromossomo = st.sidebar.slider("Comprimento do cromossomo", 10, 30, 22)
+    
+#     # Parâmetros da população
+#     st.sidebar.subheader("População")
+#     tamanho_populacao = st.sidebar.slider("Tamanho da população", 10, 100, 30)
+#     tipo_distribuicao = st.sidebar.selectbox("Distribuição inicial", ["aleatoria", "equidistante"])
+    
+#     # Parâmetros evolutivos
+#     st.sidebar.subheader("Operadores Genéticos")
+#     num_geracoes = st.sidebar.slider("Número de gerações", 10, 200, 25)
+#     pontos_cruzamento = st.sidebar.selectbox("Pontos de cruzamento", [1, 2])
+#     taxa_cruzamento = st.sidebar.slider("Taxa de cruzamento", 0.0, 1.0, 0.8, 0.05)
+#     taxa_mutacao = st.sidebar.slider("Taxa de mutação", 0.001, 0.1, 0.01, 0.001)
+#     usar_elitismo = st.sidebar.checkbox("Usar elitismo", value=True)
+    
+#     # Parâmetros de aptidão
+#     st.sidebar.subheader("Aptidão")
+#     aptidao_maxima_rank = st.sidebar.number_input("Aptidão máxima", value=2.0, step=0.1)
+#     aptidao_minima_rank = st.sidebar.number_input("Aptidão mínima", value=0.0, step=0.1)
+    
+#     # Botão para executar
+#     if st.sidebar.button("Executar Algoritmo", type="primary"):
+#         # Preparar parâmetros
+#         parametros = {
+#             'min_x': min_x,
+#             'max_x': max_x,
+#             'comprimento_cromossomo': comprimento_cromossomo,
+#             'tamanho_populacao': tamanho_populacao,
+#             'num_geracoes': num_geracoes,
+#             'taxa_cruzamento': taxa_cruzamento,
+#             'taxa_mutacao': taxa_mutacao,
+#             'usar_elitismo': usar_elitismo,
+#             'pontos_cruzamento': pontos_cruzamento,
+#             'tipo_distribuicao': tipo_distribuicao,
+#             'aptidao_maxima_rank': aptidao_maxima_rank,
+#             'aptidao_minima_rank': aptidao_minima_rank
+#         }
+        
+#         # Executar algoritmo
+#         with st.spinner("Executando algoritmo genético..."):
+#             resultados = executar_algoritmo_genetico_streamlit(parametros)
+        
+#         # Armazenar resultados no session state
+#         st.session_state.resultados = resultados
+#         st.session_state.parametros = parametros
+#         st.success("✅ Algoritmo executado com sucesso!")
+    
+#     # Mostrar resultados se existirem
+#     if 'resultados' in st.session_state:
+#         resultados = st.session_state.resultados
+#         parametros = st.session_state.parametros
+        
+#         # Gráfico principal COM CAPTURA de valores teóricos
+#         st.subheader("📊 Visualização da Evolução")
+#         fig, x_maximo_teorico, valor_maximo_teorico = criar_grafico_evolucao(
+#             resultados['dados_evolucao'], 
+#             parametros['tipo_distribuicao'], 
+#             parametros['pontos_cruzamento'], 
+#             parametros['min_x'], 
+#             parametros['max_x']
+#         )
+#         st.plotly_chart(fig, use_container_width=True)
+        
+#         # Métricas principais
+#         col1, col2, col3, col4, col5 = st.columns(5)
+        
+#         with col1:
+#             st.metric("Melhor f(x)", f"{resultados['melhor_objetivo']:.6f}")
+        
+#         with col2:
+#             st.metric("Melhor x", f"{resultados['melhor_x']:.6f}")
+        
+#         with col3:
+#             st.metric("Máximo Teórico", f"{valor_maximo_teorico:.6f}")
+        
+#         with col4:
+#             tipo_cruzamento = "Ponto único" if parametros['pontos_cruzamento'] == 1 else "Dois pontos"
+#             st.metric("Cruzamento", tipo_cruzamento)
+        
+#         with col5:
+#             status_elitismo = "Ativado" if parametros['usar_elitismo'] else "Desativado"
+#             st.metric("Elitismo", status_elitismo)
+        
+#         # Informações detalhadas
+#         with st.expander("📋 Informações Detalhadas"):
+#             col1, col2 = st.columns(2)
+            
+#             with col1:
+#                 st.subheader("Melhor Cromossomo")
+#                 st.code(resultados['melhor_individuo'])
+                
+#                 st.subheader("Parâmetros Utilizados")
+#                 df_parametros = pd.DataFrame([
+#                     {"Parâmetro": "População", "Valor": parametros['tamanho_populacao']},
+#                     {"Parâmetro": "Gerações", "Valor": parametros['num_geracoes']},
+#                     {"Parâmetro": "Taxa cruzamento", "Valor": f"{parametros['taxa_cruzamento']:.1%}"},
+#                     {"Parâmetro": "Taxa mutação", "Valor": f"{parametros['taxa_mutacao']:.1%}"},
+#                     {"Parâmetro": "Distribuição", "Valor": parametros['tipo_distribuicao'].title()},
+#                 ])
+                
+#                 # Função auxiliar para limpar DataFrame
+#                 def limpar_dataframe_para_streamlit(df):
+#                     """Limpa o DataFrame para evitar erros do PyArrow no Streamlit"""
+#                     df_limpo = df.copy()
+                    
+#                     for col in df_limpo.columns:
+#                         if df_limpo[col].dtype == 'object':
+#                             # Tentar converter porcentagens para números
+#                             if df_limpo[col].astype(str).str.contains('%').any():
+#                                 try:
+#                                     df_limpo[col] = pd.to_numeric(
+#                                         df_limpo[col].astype(str).str.replace('%', ''), 
+#                                         errors='coerce'
+#                                     )
+#                                 except:
+#                                     pass
+                    
+#                     return df_limpo
+                
+#                 st.dataframe(limpar_dataframe_para_streamlit(df_parametros), hide_index=True)
+            
+#             with col2:
+#                 st.subheader("Estatísticas por Geração")
+#                 df_estatisticas = pd.DataFrame({
+#                     'Geração': range(1, len(resultados['melhor_por_geracao']) + 1),
+#                     'Melhor f(x)': resultados['melhor_por_geracao'],
+#                     'Média f(x)': resultados['media_por_geracao']
+#                 })
+#                 st.dataframe(df_estatisticas, height=300)
+        
+#         # Comparação com máximo teórico - MENSAGEM SIMPLES
+#         gap = valor_maximo_teorico - resultados['melhor_objetivo']
+#         gap_percentual = (gap / valor_maximo_teorico) * 100 if valor_maximo_teorico != 0 else 0
+        
+#         st.info(f"""
+#         **📈 Comparação com Máximo Teórico:**
+#         - Máximo teórico: f({x_maximo_teorico:.5f}) = {valor_maximo_teorico:.5f}
+#         - Melhor encontrado: f({resultados['melhor_x']:.5f}) = {resultados['melhor_objetivo']:.5f}
+#         - Gap: {gap:.5f} ({gap_percentual:.2f}%)
+#         """)
+
+# if __name__ == "__main__":
+#     principal()
+
+
+
+
+
+
+
+
 import streamlit as st
 import math
 import random
@@ -9,130 +546,164 @@ from datetime import datetime
 import time
 from scipy.optimize import differential_evolution
 
-# Configuración de la página
+# Configuração da página
 st.set_page_config(
-    page_title="Algoritmos genéticos",
+    page_title="Algoritmos Genéticos",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- Funciones del Algoritmo Genético ---
+# --- Funções do Algoritmo Genético ---
 
-def encode_x(value, min_x, max_x, chromosome_length):
+# Função para converter um valor real em representação binária
+# Transforma um número decimal em uma cadeia de bits de comprimento fixo
+def codificar_x(valor, min_x, max_x, comprimento_cromossomo):
     """Codifica um valor real 'x' em uma cadeia de bits."""
-    value = max(min_x, min(max_x, value))
-    range_span = max_x - min_x
-    max_b10_value = (2**chromosome_length) - 1
-    b10 = round((value - min_x) * max_b10_value / range_span)
-    binary_str = bin(int(b10))[2:].zfill(chromosome_length)
-    return binary_str
+    valor = max(min_x, min(max_x, valor))
+    amplitude_intervalo = max_x - min_x
+    valor_maximo_b10 = (2**comprimento_cromossomo) - 1
+    b10 = round((valor - min_x) * valor_maximo_b10 / amplitude_intervalo)
+    cadeia_binaria = bin(int(b10))[2:].zfill(comprimento_cromossomo)
+    return cadeia_binaria
 
-def decode_chromosome(chromosome_str, min_x, max_x, chromosome_length):
+# Função para converter uma representação binária de volta para valor real
+# Transforma uma cadeia de bits em um número decimal dentro do intervalo especificado
+def decodificar_cromossomo(cadeia_cromossomo, min_x, max_x, comprimento_cromossomo):
     """Decodifica uma cadeia de bits em um valor real 'x'."""
-    b10 = int(chromosome_str, 2)
-    max_b10_value = (2**chromosome_length) - 1
-    x = min_x + (max_x - min_x) * b10 / max_b10_value
+    b10 = int(cadeia_cromossomo, 2)
+    valor_maximo_b10 = (2**comprimento_cromossomo) - 1
+    x = min_x + (max_x - min_x) * b10 / valor_maximo_b10
     return x
 
-def objective_function(x):
+# Função objetivo que queremos otimizar
+# Define o problema matemático: f(x) = x * sin(10*pi*x) + 1
+def funcao_objetivo(x):
     """Implementa a função objetivo f(x) = x * sin(10*pi*x) + 1."""
     return x * math.sin(10 * math.pi * x) + 1
 
-def generate_initial_population(size, length, distribution_type, min_x, max_x):
+# Função para criar a população inicial de cromossomos
+# Gera indivíduos iniciais de forma aleatória ou equidistante
+def gerar_populacao_inicial(tamanho, comprimento, tipo_distribuicao, min_x, max_x):
     """Gera a população inicial de cromossomos."""
-    population = []
-    if distribution_type == "random":
-        for _ in range(size):
-            chromosome = ''.join(random.choice('01') for _ in range(length))
-            population.append(chromosome)
-    elif distribution_type == "equidistant":
-        if size == 1:
-            x_value = (min_x + max_x) / 2
-            population.append(encode_x(x_value, min_x, max_x, length))
+    populacao = []
+    if tipo_distribuicao == "aleatoria":
+        for _ in range(tamanho):
+            cromossomo = ''.join(random.choice('01') for _ in range(comprimento))
+            populacao.append(cromossomo)
+    elif tipo_distribuicao == "equidistante":
+        if tamanho == 1:
+            valor_x = (min_x + max_x) / 2
+            populacao.append(codificar_x(valor_x, min_x, max_x, comprimento))
         else:
-            step_size = (max_x - min_x) / (size - 1)
-            for i in range(size):
-                x_value = min_x + i * step_size
-                population.append(encode_x(x_value, min_x, max_x, length))
-    return population
+            tamanho_passo = (max_x - min_x) / (tamanho - 1)
+            for i in range(tamanho):
+                valor_x = min_x + i * tamanho_passo
+                populacao.append(codificar_x(valor_x, min_x, max_x, comprimento))
+    return populacao
 
-def evaluate_population(population, min_x, max_x, chromosome_length, rank_max_fitness, rank_min_fitness):
+# Função para avaliar a qualidade (fitness) de cada cromossomo
+# Calcula o valor da função objetivo e atribui aptidão baseada no ranking
+def avaliar_populacao(populacao, min_x, max_x, comprimento_cromossomo, aptidao_maxima_rank, aptidao_minima_rank):
     """Avalia a aptidão de cada cromossomo na população."""
-    evaluated_chromosomes = []
-    for chromosome in population:
-        x_value = decode_chromosome(chromosome, min_x, max_x, chromosome_length)
-        objective_value = objective_function(x_value)
-        evaluated_chromosomes.append({
-            'chromosome': chromosome,
-            'x_value': x_value,
-            'objective_value': objective_value,
-            'fitness': 0
+    cromossomos_avaliados = []
+    for cromossomo in populacao:
+        valor_x = decodificar_cromossomo(cromossomo, min_x, max_x, comprimento_cromossomo)
+        valor_objetivo = funcao_objetivo(valor_x)
+        cromossomos_avaliados.append({
+            'cromossomo': cromossomo,
+            'valor_x': valor_x,
+            'valor_objetivo': valor_objetivo,
+            'aptidao': 0
         })
     
     # Ordenar e atribuir aptidão ranqueada
-    evaluated_chromosomes.sort(key=lambda item: item['objective_value'], reverse=True)
-    N = len(evaluated_chromosomes)
-    for i, item in enumerate(evaluated_chromosomes):
+    cromossomos_avaliados.sort(key=lambda item: item['valor_objetivo'], reverse=True)
+    N = len(cromossomos_avaliados)
+    for i, item in enumerate(cromossomos_avaliados):
         if N > 1:
-            item['fitness'] = rank_min_fitness + (rank_max_fitness - rank_min_fitness) * (N - 1 - i) / (N - 1)
+            item['aptidao'] = aptidao_minima_rank + (aptidao_maxima_rank - aptidao_minima_rank) * (N - 1 - i) / (N - 1)
         else:
-            item['fitness'] = rank_max_fitness
+            item['aptidao'] = aptidao_maxima_rank
     
-    return evaluated_chromosomes
+    return cromossomos_avaliados
 
-def select_parents(evaluated_population, population_size):
+# Função para selecionar pais para reprodução
+# Implementa o método da roleta viciada baseado na aptidão
+def selecionar_pais(populacao_avaliada, tamanho_populacao):
     """Seleciona os pais usando o algoritmo da roleta."""
-    total_fitness = sum(item['fitness'] for item in evaluated_population)
+    aptidao_total = sum(item['aptidao'] for item in populacao_avaliada)
     
-    if total_fitness == 0:
-        return [random.choice([item['chromosome'] for item in evaluated_population]) for _ in range(population_size)]
+    if aptidao_total == 0:
+        return [random.choice([item['cromossomo'] for item in populacao_avaliada]) for _ in range(tamanho_populacao)]
 
-    cumulative_fitness = []
-    current_cumulative = 0
-    for item in evaluated_population:
-        current_cumulative += item['fitness']
-        cumulative_fitness.append(current_cumulative)
+    aptidao_cumulativa = []
+    cumulativo_atual = 0
+    for item in populacao_avaliada:
+        cumulativo_atual += item['aptidao']
+        aptidao_cumulativa.append(cumulativo_atual)
         
-    selected_parents = []
-    for _ in range(population_size):
-        r = random.uniform(0, total_fitness)
-        for i, cumulative_val in enumerate(cumulative_fitness):
-            if r <= cumulative_val:
-                selected_parents.append(evaluated_population[i]['chromosome'])
+    pais_selecionados = []
+    for _ in range(tamanho_populacao):
+        r = random.uniform(0, aptidao_total)
+        for i, valor_cumulativo in enumerate(aptidao_cumulativa):
+            if r <= valor_cumulativo:
+                pais_selecionados.append(populacao_avaliada[i]['cromossomo'])
                 break
-    return selected_parents
+    return pais_selecionados
 
-def crossover(parent1, parent2, num_points, crossover_rate, chromosome_length):
-    """Realiza crossover entre dois pais."""
-    if random.random() < crossover_rate:
-        if num_points == 1:
-            point = random.randint(1, chromosome_length - 1)
-            child1 = parent1[:point] + parent2[point:]
-            child2 = parent2[:point] + parent1[point:]
-            return child1, child2
-        elif num_points == 2:
-            point1 = random.randint(1, chromosome_length - 2)
-            point2 = random.randint(point1 + 1, chromosome_length - 1)
-            child1 = parent1[:point1] + parent2[point1:point2] + parent1[point2:]
-            child2 = parent2[:point1] + parent1[point1:point2] + parent2[point2:]
-            return child1, child2
-    return parent1, parent2
+# Função para realizar cruzamento entre dois pais
+# Combina material genético de dois cromossomos para gerar descendência
+def cruzamento(pai1, pai2, tipo_cruzamento, taxa_cruzamento, comprimento_cromossomo):
+    """Realiza cruzamento entre dois pais."""
+    if random.random() < taxa_cruzamento:
+        if tipo_cruzamento == "Um ponto":
+            ponto = random.randint(1, comprimento_cromossomo - 1)
+            filho1 = pai1[:ponto] + pai2[ponto:]
+            filho2 = pai2[:ponto] + pai1[ponto:]
+            return filho1, filho2
+        elif tipo_cruzamento == "Dois pontos":
+            ponto1 = random.randint(1, comprimento_cromossomo - 2)
+            ponto2 = random.randint(ponto1 + 1, comprimento_cromossomo - 1)
+            filho1 = pai1[:ponto1] + pai2[ponto1:ponto2] + pai1[ponto2:]
+            filho2 = pai2[:ponto1] + pai1[ponto1:ponto2] + pai2[ponto2:]
+            return filho1, filho2
+        elif tipo_cruzamento == "Uniforme":
+            # Implementação do crossover uniforme (máscara de bits)
+            mascara = [random.choice([0, 1]) for _ in range(comprimento_cromossomo)]
+            filho1 = ""
+            filho2 = ""
+            
+            for i in range(comprimento_cromossomo):
+                if mascara[i] == 1:
+                    # Se máscara é 1: filho1 herda de pai1, filho2 herda de pai2
+                    filho1 += pai1[i]
+                    filho2 += pai2[i]
+                else:
+                    # Se máscara é 0: filho1 herda de pai2, filho2 herda de pai1
+                    filho1 += pai2[i]
+                    filho2 += pai1[i]
+            
+            return filho1, filho2
+    return pai1, pai2
 
-def mutate(chromosome, mutation_rate, chromosome_length):
+# Função para introduzir mutações nos cromossomos
+# Inverte bits aleatoriamente para manter diversidade genética
+def mutar(cromossomo, taxa_mutacao, comprimento_cromossomo):
     """Realiza a mutação de inversão de bit."""
-    mutated_chromosome = list(chromosome)
-    for i in range(chromosome_length):
-        if random.random() < mutation_rate:
-            mutated_chromosome[i] = '1' if mutated_chromosome[i] == '0' else '0'
-    return "".join(mutated_chromosome)
+    cromossomo_mutado = list(cromossomo)
+    for i in range(comprimento_cromossomo):
+        if random.random() < taxa_mutacao:
+            cromossomo_mutado[i] = '1' if cromossomo_mutado[i] == '0' else '0'
+    return "".join(cromossomo_mutado)
 
-
-def create_evolution_plot(evolution_data, distribution_type, crossover_points, min_x, max_x):
+# Função para criar visualização gráfica da evolução
+# Gera gráficos interativos mostrando a convergência do algoritmo
+def criar_grafico_evolucao(dados_evolucao, tipo_distribuicao, tipo_cruzamento, min_x, max_x):
     """Cria o gráfico interativo da evolução das soluções."""
     fig = make_subplots(
         rows=1, cols=2,
-        subplot_titles=(f'Evolução das soluções - {distribution_type.title()}', 'Convergência do fitness'),
+        subplot_titles=(f'Evolução das soluções - {tipo_distribuicao.title()}', 'Convergência da aptidão'),
         specs=[[{"secondary_y": False}, {"secondary_y": False}]]
     )
     
@@ -140,24 +711,18 @@ def create_evolution_plot(evolution_data, distribution_type, crossover_points, m
     x_func = np.linspace(min_x, max_x, 1000)
     y_func = x_func * np.sin(10 * np.pi * x_func) + 1
     
-    # # NOVO: Calcular o máximo teórico automaticamente
-    # theoretical_max_value = np.max(y_func)
-    # theoretical_max_x = x_func[np.argmax(y_func)]
-
-    # Función objetivo
-    def objective_function(x):
+    # Função objetivo para otimização
+    def funcao_objetivo_otimizacao(x):
         return x * np.sin(10 * np.pi * x) + 1
     
     # MÁXIMO GLOBAL usando differential_evolution
-    result = differential_evolution(lambda x: -objective_function(x[0]), 
-                                  [(min_x, max_x)], 
-                                  seed=42,
-                                  maxiter=1000)
+    resultado = differential_evolution(lambda x: -funcao_objetivo_otimizacao(x[0]), 
+                                     [(min_x, max_x)], 
+                                     seed=42,
+                                     maxiter=1000)
     
-    theoretical_max_x = result.x[0]
-    theoretical_max_value = objective_function(theoretical_max_x)
-    
-
+    x_maximo_teorico = resultado.x[0]
+    valor_maximo_teorico = funcao_objetivo_otimizacao(x_maximo_teorico)
     
     fig.add_trace(
         go.Scatter(x=x_func, y=y_func, mode='lines', name='f(x) = x sin(10πx) + 1',
@@ -166,24 +731,24 @@ def create_evolution_plot(evolution_data, distribution_type, crossover_points, m
     )
     
     # População inicial (pontos pequenos e pretos)
-    initial_generation = evolution_data[0]
-    initial_x = [item['x_value'] for item in initial_generation['population']]
-    initial_y = [item['objective_value'] for item in initial_generation['population']]
+    geracao_inicial = dados_evolucao[0]
+    x_inicial = [item['valor_x'] for item in geracao_inicial['populacao']]
+    y_inicial = [item['valor_objetivo'] for item in geracao_inicial['populacao']]
     
     fig.add_trace(
-        go.Scatter(x=initial_x, y=initial_y, mode='markers', name='População Inicial',
+        go.Scatter(x=x_inicial, y=y_inicial, mode='markers', name='População Inicial',
                   marker=dict(color='black', size=4, opacity=0.7)),
         row=1, col=1
     )
     
     # Melhores soluções de cada geração (todas com cor celeste e texto preto)
-    best_x_evolution = [gen['best_individual']['x_value'] for gen in evolution_data]
-    best_y_evolution = [gen['best_individual']['objective_value'] for gen in evolution_data]
+    evolucao_melhor_x = [gen['melhor_individuo']['valor_x'] for gen in dados_evolucao]
+    evolucao_melhor_y = [gen['melhor_individuo']['valor_objetivo'] for gen in dados_evolucao]
     
     # Adicionar todas as gerações com uma única entrada na legenda
-    for i, (x, y) in enumerate(zip(best_x_evolution, best_y_evolution)):
-        show_legend = (i == 0)  # Só mostrar na legenda para a primeira iteração
-        legend_name = 'Iterações' if show_legend else None
+    for i, (x, y) in enumerate(zip(evolucao_melhor_x, evolucao_melhor_y)):
+        mostrar_legenda = (i == 0)  # Só mostrar na legenda para a primeira iteração
+        nome_legenda = 'Iterações' if mostrar_legenda else None
         
         fig.add_trace(
             go.Scatter(
@@ -192,8 +757,8 @@ def create_evolution_plot(evolution_data, distribution_type, crossover_points, m
                 text=[str(i+1)],
                 textposition="middle center",
                 textfont=dict(color="black", size=8),
-                name=legend_name,
-                showlegend=show_legend,
+                name=nome_legenda,
+                showlegend=mostrar_legenda,
                 marker=dict(
                     color='lightblue',
                     size=12,
@@ -205,44 +770,43 @@ def create_evolution_plot(evolution_data, distribution_type, crossover_points, m
         )
     
     # Gráfico de convergência
-    generations = list(range(1, len(evolution_data) + 1))
-    best_fitness = [gen['best_individual']['objective_value'] for gen in evolution_data]
-    avg_fitness = [gen['avg_objective'] for gen in evolution_data]
+    geracoes = list(range(1, len(dados_evolucao) + 1))
+    melhor_aptidao = [gen['melhor_individuo']['valor_objetivo'] for gen in dados_evolucao]
+    aptidao_media = [gen['objetivo_medio'] for gen in dados_evolucao]
     
     fig.add_trace(
-        go.Scatter(x=generations, y=best_fitness, mode='lines+markers', name='Melhor f(x)',
+        go.Scatter(x=geracoes, y=melhor_aptidao, mode='lines+markers', name='Melhor f(x)',
                   line=dict(color='blue'), marker=dict(size=4)),
         row=1, col=2
     )
     
     fig.add_trace(
-        go.Scatter(x=generations, y=avg_fitness, mode='lines+markers', name='Média f(x)',
+        go.Scatter(x=geracoes, y=aptidao_media, mode='lines+markers', name='Média f(x)',
                   line=dict(color='red', dash='dash'), marker=dict(size=3, symbol='square')),
         row=1, col=2
     )
 
-    # MODIFICADO: Línea de referencia usando el máximo calculado automáticamente
+    # Linha de referência usando o máximo calculado automaticamente
     fig.add_trace(
-        go.Scatter(x=generations, y=[theoretical_max_value]*len(generations), 
-                  mode='lines', name=f'Máximo teórico (x={theoretical_max_x:.3f})',
+        go.Scatter(x=geracoes, y=[valor_maximo_teorico]*len(geracoes), 
+                  mode='lines', name=f'Máximo teórico (x={x_maximo_teorico:.3f})',
                   line=dict(color='green', dash='dot')),
         row=1, col=2
     )
     
-    # MODIFICADO: Configurar layout con rangos dinámicos
-    # Calcular margen para visualización completa de la función
-    y_margin = (np.max(y_func) - np.min(y_func)) * 0.05  # 5% de margen
+    # Configurar layout com rangos dinâmicos
+    # Calcular margem para visualização completa da função
+    margem_y = (np.max(y_func) - np.min(y_func)) * 0.05  # 5% de margem
     
     fig.update_xaxes(title_text="x", row=1, col=1, range=[min_x, max_x])
     fig.update_yaxes(title_text="f(x)", row=1, col=1, 
-                     range=[np.min(y_func) - y_margin, np.max(y_func) + y_margin])
+                     range=[np.min(y_func) - margem_y, np.max(y_func) + margem_y])
     fig.update_xaxes(title_text="Geração", row=1, col=2)
     fig.update_yaxes(title_text="Valor de f(x)", row=1, col=2, 
-                     range=[None, max(theoretical_max_value, max(best_fitness)) * 1.05])
+                     range=[None, max(valor_maximo_teorico, max(melhor_aptidao)) * 1.05])
     
-    crossover_type = "ponto único" if crossover_points == 1 else "dois pontos"
     fig.update_layout(
-        title=f"Algoritmo genético - Crossover {crossover_type}",
+        title=f"Algoritmo Genético - Cruzamento {tipo_cruzamento}",
         height=600,
         showlegend=True,
         legend=dict(
@@ -254,190 +818,185 @@ def create_evolution_plot(evolution_data, distribution_type, crossover_points, m
         )
     )
     
-    return fig, theoretical_max_x, theoretical_max_value
+    return fig, x_maximo_teorico, valor_maximo_teorico
 
-
-
-
-
-
-
-def run_genetic_algorithm_streamlit(params):
+# Função principal que coordena todo o processo evolutivo
+# Executa o algoritmo genético completo com todas as etapas
+def executar_algoritmo_genetico_streamlit(parametros):
     """Executa o algoritmo genético com os parâmetros fornecidos."""
     # Extrair parâmetros
-    min_x = params['min_x']
-    max_x = params['max_x']
-    chromosome_length = params['chromosome_length']
-    population_size = params['population_size']
-    num_generations = params['num_generations']
-    crossover_rate = params['crossover_rate']
-    mutation_rate = params['mutation_rate']
-    use_elitism = params['use_elitism']
-    crossover_points = params['crossover_points']
-    distribution_type = params['distribution_type']
-    rank_max_fitness = params['rank_max_fitness']
-    rank_min_fitness = params['rank_min_fitness']
+    min_x = parametros['min_x']
+    max_x = parametros['max_x']
+    comprimento_cromossomo = parametros['comprimento_cromossomo']
+    tamanho_populacao = parametros['tamanho_populacao']
+    num_geracoes = parametros['num_geracoes']
+    taxa_cruzamento = parametros['taxa_cruzamento']
+    taxa_mutacao = parametros['taxa_mutacao']
+    usar_elitismo = parametros['usar_elitismo']
+    tipo_cruzamento = parametros['tipo_cruzamento']
+    tipo_distribuicao = parametros['tipo_distribuicao']
+    aptidao_maxima_rank = parametros['aptidao_maxima_rank']
+    aptidao_minima_rank = parametros['aptidao_minima_rank']
     
     # Gerar população inicial
-    population = generate_initial_population(population_size, chromosome_length, distribution_type, min_x, max_x)
+    populacao = gerar_populacao_inicial(tamanho_populacao, comprimento_cromossomo, tipo_distribuicao, min_x, max_x)
     
     # Variáveis de controle
-    best_overall_individual = None
-    best_overall_objective_value = -float('inf')
-    best_objective_per_generation = []
-    avg_objective_per_generation = []
-    evolution_data = []
+    melhor_individuo_geral = None
+    melhor_valor_objetivo_geral = -float('inf')
+    melhor_objetivo_por_geracao = []
+    objetivo_medio_por_geracao = []
+    dados_evolucao = []
     
-    # Progress bar
-    progress_bar = st.progress(0)
-    status_text = st.empty()
+    # Barra de progresso
+    barra_progresso = st.progress(0)
+    texto_status = st.empty()
     
-    for generation in range(num_generations):
-        # Atualizar progress bar
-        progress = (generation + 1) / num_generations
-        progress_bar.progress(progress)
-        status_text.text(f'Executando geração {generation + 1}/{num_generations}...')
+    for geracao in range(num_geracoes):
+        # Atualizar barra de progresso
+        progresso = (geracao + 1) / num_geracoes
+        barra_progresso.progress(progresso)
+        texto_status.text(f'Executando geração {geracao + 1}/{num_geracoes}...')
         
         # Avaliar população
-        evaluated_population = evaluate_population(population, min_x, max_x, chromosome_length, rank_max_fitness, rank_min_fitness)
+        populacao_avaliada = avaliar_populacao(populacao, min_x, max_x, comprimento_cromossomo, aptidao_maxima_rank, aptidao_minima_rank)
         
         # Encontrar melhor indivíduo
-        current_best_individual_data = max(evaluated_population, key=lambda item: item['objective_value'])
-        current_best_objective = current_best_individual_data['objective_value']
+        dados_melhor_individuo_atual = max(populacao_avaliada, key=lambda item: item['valor_objetivo'])
+        melhor_objetivo_atual = dados_melhor_individuo_atual['valor_objetivo']
         
         # Atualizar melhor global
-        if current_best_objective > best_overall_objective_value:
-            best_overall_objective_value = current_best_objective
-            best_overall_individual = current_best_individual_data['chromosome']
+        if melhor_objetivo_atual > melhor_valor_objetivo_geral:
+            melhor_valor_objetivo_geral = melhor_objetivo_atual
+            melhor_individuo_geral = dados_melhor_individuo_atual['cromossomo']
         
         # Calcular média
-        avg_objective = sum(item['objective_value'] for item in evaluated_population) / population_size
+        objetivo_medio = sum(item['valor_objetivo'] for item in populacao_avaliada) / tamanho_populacao
         
         # Armazenar dados
-        best_objective_per_generation.append(current_best_objective)
-        avg_objective_per_generation.append(avg_objective)
-        evolution_data.append({
-            'generation': generation + 1,
-            'population': evaluated_population.copy(),
-            'best_individual': current_best_individual_data.copy(),
-            'avg_objective': avg_objective
+        melhor_objetivo_por_geracao.append(melhor_objetivo_atual)
+        objetivo_medio_por_geracao.append(objetivo_medio)
+        dados_evolucao.append({
+            'geracao': geracao + 1,
+            'populacao': populacao_avaliada.copy(),
+            'melhor_individuo': dados_melhor_individuo_atual.copy(),
+            'objetivo_medio': objetivo_medio
         })
         
         # Seleção
-        parents = select_parents(evaluated_population, population_size)
+        pais = selecionar_pais(populacao_avaliada, tamanho_populacao)
         
         # Nova população
-        next_population = []
+        proxima_populacao = []
         
         # Elitismo
-        if use_elitism:
-            next_population.append(current_best_individual_data['chromosome'])
+        if usar_elitismo:
+            proxima_populacao.append(dados_melhor_individuo_atual['cromossomo'])
         
-        # Crossover e mutação
-        while len(next_population) < population_size:
-            p1 = random.choice(parents)
-            p2 = random.choice(parents)
-            child1, child2 = crossover(p1, p2, crossover_points, crossover_rate, chromosome_length)
-            child1 = mutate(child1, mutation_rate, chromosome_length)
-            child2 = mutate(child2, mutation_rate, chromosome_length)
-            next_population.append(child1)
-            if len(next_population) < population_size:
-                next_population.append(child2)
+        # Cruzamento e mutação
+        while len(proxima_populacao) < tamanho_populacao:
+            p1 = random.choice(pais)
+            p2 = random.choice(pais)
+            filho1, filho2 = cruzamento(p1, p2, tipo_cruzamento, taxa_cruzamento, comprimento_cromossomo)
+            filho1 = mutar(filho1, taxa_mutacao, comprimento_cromossomo)
+            filho2 = mutar(filho2, taxa_mutacao, comprimento_cromossomo)
+            proxima_populacao.append(filho1)
+            if len(proxima_populacao) < tamanho_populacao:
+                proxima_populacao.append(filho2)
         
-        population = next_population
+        populacao = proxima_populacao
         
         # Pequeno delay para visualizar o progresso
         time.sleep(0.01)
     
-    # Limpar progress bar
-    progress_bar.empty()
-    status_text.empty()
+    # Limpar barra de progresso
+    barra_progresso.empty()
+    texto_status.empty()
     
     return {
-        'evolution_data': evolution_data,
-        'best_individual': best_overall_individual,
-        'best_objective': best_overall_objective_value,
-        'best_x': decode_chromosome(best_overall_individual, min_x, max_x, chromosome_length),
-        'best_per_generation': best_objective_per_generation,
-        'avg_per_generation': avg_objective_per_generation
+        'dados_evolucao': dados_evolucao,
+        'melhor_individuo': melhor_individuo_geral,
+        'melhor_objetivo': melhor_valor_objetivo_geral,
+        'melhor_x': decodificar_cromossomo(melhor_individuo_geral, min_x, max_x, comprimento_cromossomo),
+        'melhor_por_geracao': melhor_objetivo_por_geracao,
+        'media_por_geracao': objetivo_medio_por_geracao
     }
 
 # --- Interface Streamlit ---
 
-
-def main():
-    st.title("Dashboard dos algoritmos genéticos")
+# Función principal que maneja toda la interfaz de usuario
+# Crea el dashboard interactivo e coordina a execução do algoritmo
+def principal():
+    st.title("Dashboard dos Algoritmos Genéticos")
     st.markdown("**Implementação interativa do tutorial de algoritmos genéticos**")
 
-    # random.seed(42)
-
     # Sidebar com parâmetros
-    st.sidebar.header("⚙️ Parâmetros do algoritmo")
+    st.sidebar.header("⚙️ Parâmetros do Algoritmo")
     
     # Parâmetros do domínio
-    st.sidebar.subheader("Domínio da função")
+    st.sidebar.subheader("Domínio da Função")
     min_x = st.sidebar.number_input("Limite inferior (min_x)", value=-1.0, step=0.1)
     max_x = st.sidebar.number_input("Limite superior (max_x)", value=2.0, step=0.1)
-    chromosome_length = st.sidebar.slider("Comprimento do cromossomo", 10, 30, 22)
+    comprimento_cromossomo = st.sidebar.slider("Comprimento do cromossomo", 10, 30, 22)
     
     # Parâmetros da população
     st.sidebar.subheader("População")
-    population_size = st.sidebar.slider("Tamanho da população", 10, 100, 30)
-    distribution_type = st.sidebar.selectbox("Distribuição inicial", ["random", "equidistant"])
+    tamanho_populacao = st.sidebar.slider("Tamanho da população", 10, 100, 30)
+    tipo_distribuicao = st.sidebar.selectbox("Distribuição inicial", ["aleatoria", "equidistante"])
     
     # Parâmetros evolutivos
-    st.sidebar.subheader("Operadores genéticos")
-    num_generations = st.sidebar.slider("Número de gerações", 10, 200, 25)
-    crossover_points = st.sidebar.selectbox("Pontos de crossover", [1, 2])
-    crossover_rate = st.sidebar.slider("Taxa de crossover", 0.0, 1.0, 0.8, 0.05)
-    mutation_rate = st.sidebar.slider("Taxa de mutação", 0.001, 0.1, 0.01, 0.001)
-    use_elitism = st.sidebar.checkbox("Usar elitismo", value=True)
+    st.sidebar.subheader("Operadores Genéticos")
+    num_geracoes = st.sidebar.slider("Número de gerações", 10, 200, 25)
+    tipo_cruzamento = st.sidebar.selectbox("Tipo de cruzamento", ["Um ponto", "Dois pontos", "Uniforme"])
+    taxa_cruzamento = st.sidebar.slider("Taxa de cruzamento", 0.0, 1.0, 0.8, 0.05)
+    taxa_mutacao = st.sidebar.slider("Taxa de mutação", 0.001, 0.1, 0.01, 0.001)
+    usar_elitismo = st.sidebar.checkbox("Usar elitismo", value=True)
     
     # Parâmetros de aptidão
     st.sidebar.subheader("Aptidão")
-    rank_max_fitness = st.sidebar.number_input("Aptidão máxima", value=2.0, step=0.1)
-    rank_min_fitness = st.sidebar.number_input("Aptidão mínima", value=0.0, step=0.1)
+    aptidao_maxima_rank = st.sidebar.number_input("Aptidão máxima", value=2.0, step=0.1)
+    aptidao_minima_rank = st.sidebar.number_input("Aptidão mínima", value=0.0, step=0.1)
     
     # Botão para executar
-    if st.sidebar.button("Executar algoritmo", type="primary"):
+    if st.sidebar.button("Executar Algoritmo", type="primary"):
         # Preparar parâmetros
-        params = {
+        parametros = {
             'min_x': min_x,
             'max_x': max_x,
-            'chromosome_length': chromosome_length,
-            'population_size': population_size,
-            'num_generations': num_generations,
-            'crossover_rate': crossover_rate,
-            'mutation_rate': mutation_rate,
-            'use_elitism': use_elitism,
-            'crossover_points': crossover_points,
-            'distribution_type': distribution_type,
-            'rank_max_fitness': rank_max_fitness,
-            'rank_min_fitness': rank_min_fitness
+            'comprimento_cromossomo': comprimento_cromossomo,
+            'tamanho_populacao': tamanho_populacao,
+            'num_geracoes': num_geracoes,
+            'taxa_cruzamento': taxa_cruzamento,
+            'taxa_mutacao': taxa_mutacao,
+            'usar_elitismo': usar_elitismo,
+            'tipo_cruzamento': tipo_cruzamento,
+            'tipo_distribuicao': tipo_distribuicao,
+            'aptidao_maxima_rank': aptidao_maxima_rank,
+            'aptidao_minima_rank': aptidao_minima_rank
         }
         
         # Executar algoritmo
         with st.spinner("Executando algoritmo genético..."):
-            results = run_genetic_algorithm_streamlit(params)
+            resultados = executar_algoritmo_genetico_streamlit(parametros)
         
         # Armazenar resultados no session state
-        st.session_state.results = results
-        st.session_state.params = params
+        st.session_state.resultados = resultados
+        st.session_state.parametros = parametros
         st.success("✅ Algoritmo executado com sucesso!")
     
     # Mostrar resultados se existirem
-    if 'results' in st.session_state:
-        results = st.session_state.results
-        params = st.session_state.params
+    if 'resultados' in st.session_state:
+        resultados = st.session_state.resultados
+        parametros = st.session_state.parametros
         
-        # Gráfico principal CON CAPTURA de valores teóricos
-        st.subheader("📊 Visualização da evolução")
-        fig, theoretical_max_x, theoretical_max_value = create_evolution_plot(
-            results['evolution_data'], 
-            params['distribution_type'], 
-            params['crossover_points'], 
-            params['min_x'], 
-            params['max_x']
+        # Gráfico principal COM CAPTURA de valores teóricos
+        st.subheader("📊 Visualização da Evolução")
+        fig, x_maximo_teorico, valor_maximo_teorico = criar_grafico_evolucao(
+            resultados['dados_evolucao'], 
+            parametros['tipo_distribuicao'], 
+            parametros['tipo_cruzamento'], 
+            parametros['min_x'], 
+            parametros['max_x']
         )
         st.plotly_chart(fig, use_container_width=True)
         
@@ -445,79 +1004,79 @@ def main():
         col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
-            st.metric("Melhor f(x)", f"{results['best_objective']:.6f}")
+            st.metric("Melhor f(x)", f"{resultados['melhor_objetivo']:.6f}")
         
         with col2:
-            st.metric("Melhor x", f"{results['best_x']:.6f}")
+            st.metric("Melhor x", f"{resultados['melhor_x']:.6f}")
         
         with col3:
-            st.metric("Máximo teórico", f"{theoretical_max_value:.6f}")
+            st.metric("Máximo Teórico", f"{valor_maximo_teorico:.6f}")
         
         with col4:
-            crossover_type = "Ponto único" if params['crossover_points'] == 1 else "Dois pontos"
-            st.metric("Crossover", crossover_type)
+            st.metric("Cruzamento", parametros['tipo_cruzamento'])
         
         with col5:
-            elitism_status = "Ativado" if params['use_elitism'] else "Desativado"
-            st.metric("Elitismo", elitism_status)
+            status_elitismo = "Ativado" if parametros['usar_elitismo'] else "Desativado"
+            st.metric("Elitismo", status_elitismo)
         
         # Informações detalhadas
-        with st.expander("📋 Informações detalhadas"):
+        with st.expander("📋 Informações Detalhadas"):
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader("Melhor cromossomo")
-                st.code(results['best_individual'])
+                st.subheader("Melhor Cromossomo")
+                st.code(resultados['melhor_individuo'])
                 
-                st.subheader("Parâmetros utilizados")
-                param_df = pd.DataFrame([
-                    {"Parâmetro": "População", "Valor": params['population_size']},
-                    {"Parâmetro": "Gerações", "Valor": params['num_generations']},
-                    {"Parâmetro": "Taxa crossover", "Valor": f"{params['crossover_rate']:.1%}"},
-                    {"Parâmetro": "Taxa mutação", "Valor": f"{params['mutation_rate']:.1%}"},
-                    {"Parâmetro": "Distribuição", "Valor": params['distribution_type'].title()},
+                st.subheader("Parâmetros Utilizados")
+                df_parametros = pd.DataFrame([
+                    {"Parâmetro": "População", "Valor": parametros['tamanho_populacao']},
+                    {"Parâmetro": "Gerações", "Valor": parametros['num_geracoes']},
+                    {"Parâmetro": "Taxa cruzamento", "Valor": f"{parametros['taxa_cruzamento']:.1%}"},
+                    {"Parâmetro": "Taxa mutação", "Valor": f"{parametros['taxa_mutacao']:.1%}"},
+                    {"Parâmetro": "Distribuição", "Valor": parametros['tipo_distribuicao'].title()},
+                    {"Parâmetro": "Tipo cruzamento", "Valor": parametros['tipo_cruzamento']},
                 ])
                 
-                # Función helper para limpiar DataFrame
-                def clean_dataframe_for_streamlit(df):
-                    """Limpia el DataFrame para evitar errores de PyArrow en Streamlit"""
-                    df_clean = df.copy()
+                # Função auxiliar para limpar DataFrame
+                def limpar_dataframe_para_streamlit(df):
+                    """Limpa o DataFrame para evitar erros do PyArrow no Streamlit"""
+                    df_limpo = df.copy()
                     
-                    for col in df_clean.columns:
-                        if df_clean[col].dtype == 'object':
-                            # Intentar convertir porcentajes a números
-                            if df_clean[col].astype(str).str.contains('%').any():
+                    for col in df_limpo.columns:
+                        if df_limpo[col].dtype == 'object':
+                            # Tentar converter porcentagens para números
+                            if df_limpo[col].astype(str).str.contains('%').any():
                                 try:
-                                    df_clean[col] = pd.to_numeric(
-                                        df_clean[col].astype(str).str.replace('%', ''), 
+                                    df_limpo[col] = pd.to_numeric(
+                                        df_limpo[col].astype(str).str.replace('%', ''), 
                                         errors='coerce'
                                     )
                                 except:
                                     pass
                     
-                    return df_clean
+                    return df_limpo
                 
-                st.dataframe(clean_dataframe_for_streamlit(param_df), hide_index=True)
+                st.dataframe(limpar_dataframe_para_streamlit(df_parametros), hide_index=True)
             
             with col2:
-                st.subheader("Estatísticas por geração")
-                stats_df = pd.DataFrame({
-                    'Geração': range(1, len(results['best_per_generation']) + 1),
-                    'Melhor f(x)': results['best_per_generation'],
-                    'Média f(x)': results['avg_per_generation']
+                st.subheader("Estatísticas por Geração")
+                df_estatisticas = pd.DataFrame({
+                    'Geração': range(1, len(resultados['melhor_por_geracao']) + 1),
+                    'Melhor f(x)': resultados['melhor_por_geracao'],
+                    'Média f(x)': resultados['media_por_geracao']
                 })
-                st.dataframe(stats_df, height=300)
+                st.dataframe(df_estatisticas, height=300)
         
-        # Comparação com máximo teórico - MENSAJE SIMPLE
-        gap = theoretical_max_value - results['best_objective']
-        gap_percent = (gap / theoretical_max_value) * 100 if theoretical_max_value != 0 else 0
+        # Comparação com máximo teórico - MENSAGEM SIMPLES
+        gap = valor_maximo_teorico - resultados['melhor_objetivo']
+        gap_percentual = (gap / valor_maximo_teorico) * 100 if valor_maximo_teorico != 0 else 0
         
         st.info(f"""
-        **📈 Comparação com máximo teórico:**
-        - Máximo teórico: f({theoretical_max_x:.5f}) = {theoretical_max_value:.5f}
-        - Melhor encontrado: f({results['best_x']:.5f}) = {results['best_objective']:.5f}
-        - Gap: {gap:.5f} ({gap_percent:.2f}%)
+        **📈 Comparação com Máximo Teórico:**
+        - Máximo teórico: f({x_maximo_teorico:.5f}) = {valor_maximo_teorico:.5f}
+        - Melhor encontrado: f({resultados['melhor_x']:.5f}) = {resultados['melhor_objetivo']:.5f}
+        - Gap: {gap:.5f} ({gap_percentual:.2f}%)
         """)
 
 if __name__ == "__main__":
-    main()
+    principal()
